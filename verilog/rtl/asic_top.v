@@ -1,21 +1,5 @@
-/*
- *  PicoSoC - A simple example SoC using PicoRV32
- *
- *  Copyright (C) 2017  Claire Xenia Wolf <claire@yosyshq.com>
- *
- *  Permission to use, copy, modify, and/or distribute this software for any
- *  purpose with or without fee is hereby granted, provided that the above
- *  copyright notice and this permission notice appear in all copies.
- *
- *  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- *  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- *  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- *  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- *  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- *  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- *  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
- */
+// Irp 
+// top module for asic implementation of picosoc
 
 `ifdef PICOSOC_V
 `error "asic_top.v must be read before picosoc.v!"
@@ -40,32 +24,33 @@ module asic_top (
     output wire [15:0]   gpio_out,
     output wire [15:0]   gpio_oe,
     
-	output flash_csb,
+    output wire i2c_sda_oe,
+    output wire i2c_sda_do,
+    input wire i2c_sda_di,
+
+    output wire i2c_scl_oe,
+    output wire i2c_scl_do,
+    input wire i2c_scl_di,
+	
+    output flash_csb,
 	output flash_clk,
-	inout  flash_io0,
-	inout  flash_io1,
-	inout  flash_io2,
-	inout  flash_io3
+    output wire flash_io0_oe,
+    output wire flash_io0_do,
+    input wire flash_io0_di,
+
+    output wire flash_io1_oe,
+    output wire flash_io1_do,
+    input wire flash_io1_di,
+
+    output wire flash_io2_oe,
+    output wire flash_io2_do,
+    input wire flash_io2_di,
+
+    output wire flash_io3_oe,
+    output wire flash_io3_do,
+    input wire flash_io3_di
 );
 	parameter integer MEM_WORDS = 256;
-
-// External pins to out of asic_top
-    wire flash_io0_oe;
-    wire flash_io0_do;
-    wire flash_io0_di;
-
-    wire flash_io1_oe;
-    wire flash_io1_do;
-    wire flash_io1_di;
-
-    wire flash_io2_oe;
-    wire flash_io2_do;
-    wire flash_io2_di;
-
-    wire flash_io3_oe;
-    wire flash_io3_do;
-    wire flash_io3_di;
-
 
 	wire        iomem_valid;
 	wire        iomem_ready;
@@ -74,33 +59,31 @@ module asic_top (
 	wire [31:0] iomem_wdata;
 	wire [31:0] iomem_rdata;
 
-// Internal wires for GPIO and Spi
+// Internal wires for GPIO and Spi I2C
 
     wire gpio_sel;
     wire spi_sel;
-    wire        gpio_ready;
+    wire i2c_sel;
+    
+    wire gpio_ready;
+    wire spi_ready;
+    wire i2c_ready;
+
     wire [31:0] gpio_rdata;
-    wire        spi_ready;
     wire [31:0] spi_rdata;
+    wire [31:0] i2c_rdata;
+
+
                                                                     //           (31-24)_(23-16)_(15-8)_(7-0)
     assign gpio_sel = iomem_valid && (iomem_addr[31:12] == 20'h03000);//       0x 03      00      00     00
 
     assign spi_sel = iomem_valid && (iomem_addr[31:12] == 20'h03001);//        0x 03      00      10     00
 
-    assign iomem_ready = gpio_sel ? gpio_ready : spi_sel  ? spi_ready  : 1'b0;
+    assign i2c_sel = iomem_valid && (iomem_addr[31:12] == 20'h03002);//        0x 03      00      20     00
 
-    assign iomem_rdata = gpio_sel ? gpio_rdata : spi_sel  ? spi_rdata  : 32'b0;
+    assign iomem_ready = gpio_sel ? gpio_ready : spi_sel ? spi_ready : i2c_sel ? i2c_ready : 1'b0;
 
-
-    assign flash_io0 = flash_io0_oe ? flash_io0_do : 1'bz;
-    assign flash_io1 = flash_io1_oe ? flash_io1_do : 1'bz;
-    assign flash_io2 = flash_io2_oe ? flash_io2_do : 1'bz;
-    assign flash_io3 = flash_io3_oe ? flash_io3_do : 1'bz;
-
-    assign flash_io0_di = flash_io0;
-    assign flash_io1_di = flash_io1;
-    assign flash_io2_di = flash_io2;
-    assign flash_io3_di = flash_io3;
+    assign iomem_rdata = gpio_sel ? gpio_rdata : spi_sel ? spi_rdata : i2c_sel ? i2c_rdata : 32'b0;
 
 // Soc implementation and inititation 
 	picosoc #(
@@ -185,4 +168,24 @@ module asic_top (
         .spi_sclk     (spi_sclk),
         .spi_cs       (spi_cs)
     );
+
+    i2c_master_asic u_i2c (
+    .clk          (clk),
+    .resetn       (resetn),
+
+    .iomem_valid  (i2c_sel),
+    .iomem_ready  (i2c_ready),
+    .iomem_wstrb  (iomem_wstrb),
+    .iomem_addr   (iomem_addr),
+    .iomem_wdata  (iomem_wdata),
+    .iomem_rdata  (i2c_rdata),
+
+    .i2c_sda_oe   (i2c_sda_oe),
+    .i2c_sda_do   (i2c_sda_do),
+    .i2c_sda_di   (i2c_sda_di),
+
+    .i2c_scl_oe   (i2c_scl_oe),
+    .i2c_scl_do   (i2c_scl_do),
+    .i2c_scl_di   (i2c_scl_di)
+);
 endmodule
